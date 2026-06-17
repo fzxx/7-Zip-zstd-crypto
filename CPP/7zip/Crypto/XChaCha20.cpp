@@ -168,21 +168,21 @@ void XChaCha20Block_Core(Byte *output, const Byte *key, const Byte *nonce, UInt6
   x14 += GetUi32(nonce);
   x15 += GetUi32(nonce + 4);
   
-  SetUi32(output, x0)
-  SetUi32(output + 4, x1)
-  SetUi32(output + 8, x2)
-  SetUi32(output + 12, x3)
-  SetUi32(output + 16, x4)
-  SetUi32(output + 20, x5)
-  SetUi32(output + 24, x6)
-  SetUi32(output + 28, x7)
-  SetUi32(output + 32, x8)
-  SetUi32(output + 36, x9)
-  SetUi32(output + 40, x10)
-  SetUi32(output + 44, x11)
-  SetUi32(output + 48, x12)
-  SetUi32(output + 52, x13)
-  SetUi32(output + 56, x14)
+  SetUi32(output, x0);
+  SetUi32(output + 4, x1);
+  SetUi32(output + 8, x2);
+  SetUi32(output + 12, x3);
+  SetUi32(output + 16, x4);
+  SetUi32(output + 20, x5);
+  SetUi32(output + 24, x6);
+  SetUi32(output + 28, x7);
+  SetUi32(output + 32, x8);
+  SetUi32(output + 36, x9);
+  SetUi32(output + 40, x10);
+  SetUi32(output + 44, x11);
+  SetUi32(output + 48, x12);
+  SetUi32(output + 52, x13);
+  SetUi32(output + 56, x14);
   SetUi32(output + 60, x15);
 }
 

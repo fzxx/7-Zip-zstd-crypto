@@ -33,7 +33,7 @@ You can install it in two ways:
 
 6. [Fast LZMA2] v1.0.1 is a LZMA2 compression algorithm, 20% to 100% faster than normal LZMA2 at levels 5 and above, but with a slightly lower compression ratio. It uses a parallel buffered radix matchfinder and some optimizations from Zstandard. The codec uses much less additional memory per thread than standard LZMA2.
    - Levels: 1..9
-
+   
 ### Encryption overview
 1. [7zAES] is the default encryption method of 7-Zip, using AES-256 in CBC mode with SHA-256 based key derivation.
    - Key derivation: SHA-256 iterative hashing

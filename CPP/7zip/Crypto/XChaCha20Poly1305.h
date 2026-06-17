@@ -1,4 +1,4 @@
-// XChaCha20Poly1305.h
+﻿// XChaCha20Poly1305.h
 // Copyright (C) fzxx   Contributor: https://github.com/fzxx
 // License: GNU LGPL v2.1+
 
@@ -23,9 +23,10 @@ const unsigned kPolyKeySize = 32;
 
 class CPoly1305
 {
-  Byte _r[16];
-  Byte _s[16];
-  Byte _h[16];
+  UInt32 _r[4];
+  UInt32 _s[4];
+  UInt32 _h[5];
+  UInt32 _n[4];
   Byte _block[16];
   unsigned _blockPos;
   UInt64 _totalLen;
@@ -34,7 +35,7 @@ class CPoly1305
   unsigned _aadBlockPos;
   UInt64 _aadLen;
 
-  void PadAndProcessBlock(Byte *buf, unsigned bufPos, UInt64 len);
+  void PadAndProcessBlock(Byte *buf, unsigned bufPos);
   void ProcessBlocks(Byte *buf, unsigned &bufPos, UInt64 &len, const Byte *data, UInt32 size);
 public:
   CPoly1305();
