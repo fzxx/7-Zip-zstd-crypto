@@ -1,4 +1,4 @@
-// XChaCha20Poly1305.cpp
+﻿// XChaCha20Poly1305.cpp
 // Copyright (C) fzxx   Contributor: https://github.com/fzxx
 // License: GNU LGPL v2.1+
 
@@ -186,9 +186,9 @@ void CPoly1305::PadAndProcessBlock(Byte *buf, unsigned bufPos)
 {
   if (bufPos != 0)
   {
-    buf[bufPos] = 1;
-    memset(buf + bufPos + 1, 0, 16 - bufPos - 1);
-    Poly1305_ProcessBlock(_h, _r, _s, buf, false);
+    // RFC 8439: pad16 用 0x00 填充到 16 字节边界，作为完整块处理（添加 2^128）
+    memset(buf + bufPos, 0, 16 - bufPos);
+    Poly1305_ProcessBlock(_h, _r, _s, buf, true);
   }
 }
 
@@ -348,8 +348,17 @@ Z7_COM7F_IMF(CEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
 
   if (!_tagReady)
   {
-    _poly1305.Final(_computedTag);
-    _tagReady = true;
+    if (_derivedKeyValid)
+    {
+      _poly1305.Final(_computedTag);
+      _tagReady = true;
+    }
+    else
+    {
+      // 编码尚未开始（FillProps_from_Coder 第一次调用），写入空 tag
+      // 编码完成后 FillProps_from_Coder 会再次调用，此时计算真正的 tag
+      memset(_computedTag, 0, kTagSize);
+    }
   }
 
   memcpy(props + propsSize, _computedTag, kTagSize);
