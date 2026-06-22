@@ -1,4 +1,4 @@
-﻿// XChaCha20Poly1305.cpp
+// XChaCha20Poly1305.cpp
 // Copyright (C) fzxx   Contributor: https://github.com/fzxx
 // License: GNU LGPL v2.1+
 
@@ -186,7 +186,6 @@ void CPoly1305::PadAndProcessBlock(Byte *buf, unsigned bufPos)
 {
   if (bufPos != 0)
   {
-    // RFC 8439: pad16 用 0x00 填充到 16 字节边界，作为完整块处理（添加 2^128）
     memset(buf + bufPos, 0, 16 - bufPos);
     Poly1305_ProcessBlock(_h, _r, _s, buf, true);
   }
@@ -304,6 +303,7 @@ Z7_COM7F_IMF(CEncoder::ResetInitVector())
   }
 
   _tagReady = false;
+  _propsWritten = false;
   memset(_computedTag, 0, kTagSize);
   return S_OK;
 }
@@ -348,6 +348,8 @@ Z7_COM7F_IMF(CEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
 
   if (!_tagReady)
   {
+    if (!_derivedKeyValid && _propsWritten)
+      DeriveKey();
     if (_derivedKeyValid)
     {
       _poly1305.Final(_computedTag);
@@ -355,11 +357,10 @@ Z7_COM7F_IMF(CEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
     }
     else
     {
-      // 编码尚未开始（FillProps_from_Coder 第一次调用），写入空 tag
-      // 编码完成后 FillProps_from_Coder 会再次调用，此时计算真正的 tag
       memset(_computedTag, 0, kTagSize);
     }
   }
+  _propsWritten = true;
 
   memcpy(props + propsSize, _computedTag, kTagSize);
   propsSize += kTagSize;
@@ -375,6 +376,7 @@ CEncoder::CEncoder()
   _derivedKeyValid = false;
   _aadSize = 0;
   _tagReady = false;
+  _propsWritten = false;
   memset(_computedTag, 0, kTagSize);
 }
 
@@ -461,6 +463,8 @@ Z7_COM7F_IMF(CDecoder::CryptoAuthVerify(Int32 *result))
     return S_OK;
   }
   _authChecked = true;
+  if (!_derivedKeyValid)
+    DeriveKey();
 
   Byte computedTag[kTagSize];
   _poly1305.Final(computedTag);

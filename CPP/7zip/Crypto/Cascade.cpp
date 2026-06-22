@@ -26,6 +26,32 @@
 
 namespace NCrypto {
 
+static AES_CODE_FUNC s_AesCtrFunc = NULL;
+
+static void InitAesCtrFunc()
+{
+  if (s_AesCtrFunc)
+    return;
+
+  AES_CODE_FUNC func = AesCtr_Code;
+
+#if defined(MY_CPU_X86_OR_AMD64)
+  if (CPU_IsSupported_AES())
+  {
+    func = AesCtr_Code_HW;
+    if (CPU_IsSupported_VAES_AVX2())
+      func = AesCtr_Code_HW_256;
+  }
+#elif defined(MY_CPU_ARM_OR_ARM64) && defined(MY_CPU_LE)
+  if (CPU_IsSupported_AES())
+  {
+    func = AesCtr_Code_HW;
+  }
+#endif
+
+  s_AesCtrFunc = func;
+}
+
 static void XorBytes(Byte *dst, const Byte *src, unsigned len)
 {
   Byte *d = dst;
@@ -69,6 +95,7 @@ static CKeyInfoCache g_AXP_GlobalKeyCache(32);
 CAXPBase::CAXPBase():
   _cachedKeys(16),
   _keyDerived(false),
+  _aesKeys(AES_NUM_IVMRK_WORDS * sizeof(UInt32)),
   _xcBlockPos(64),
   _xcCounter(0),
   _aadSize(0),
@@ -78,7 +105,7 @@ CAXPBase::CAXPBase():
   _key.DerivMode = N7zKeyDerivation::kDeriv_Cascade;
   Z7_memset_0_ARRAY(_keyAes);
   Z7_memset_0_ARRAY(_aesIv);
-  Z7_memset_0_ARRAY(_aesKeys);
+  memset(_aesKeys, 0, AES_NUM_IVMRK_WORDS * sizeof(UInt32));
   Z7_memset_0_ARRAY(_keyXChaCha20);
   Z7_memset_0_ARRAY(_xcNonce);
   Z7_memset_0_ARRAY(_xcDerivedKey);
@@ -109,8 +136,8 @@ void CAXPBase::DeriveAXPKeys()
       _key.CascadeKey, kCascadeKeySize,
       "AES-key", 7,
       _keyAes, 32);
-  Aes_SetKey_Enc(_aesKeys + 4, _keyAes, 32);
-  memcpy(_aesKeys, _aesIv, 16);
+  Aes_SetKey_Enc(AesKeys() + 4, _keyAes, 32);
+  memcpy(AesKeys(), _aesIv, 16);
 
   NHkdfBlake2sp::Derive(
       _key.CascadeKey, kCascadeKeySize,
@@ -140,10 +167,11 @@ void CAXPBase::ComputePolyKey()
 
 void CAXPBase::AesCtrXorData(Byte *data, UInt32 size)
 {
+  InitAesCtrFunc();
   if (size >= AES_BLOCK_SIZE)
   {
     UInt32 numBlocks = size >> 4;
-    AesCtr_Code(_aesKeys, data, numBlocks);
+    s_AesCtrFunc(AesKeys(), data, numBlocks);
     data += numBlocks << 4;
     size -= numBlocks << 4;
   }
@@ -151,7 +179,7 @@ void CAXPBase::AesCtrXorData(Byte *data, UInt32 size)
   {
     Byte temp[16];
     memset(temp, 0, 16);
-    AesCtr_Code(_aesKeys, temp, 1);
+    s_AesCtrFunc(AesKeys(), temp, 1);
     for (UInt32 i = 0; i < size; i++)
       data[i] ^= temp[i];
     Z7_memset_0_ARRAY(temp);
@@ -160,21 +188,7 @@ void CAXPBase::AesCtrXorData(Byte *data, UInt32 size)
 
 void CAXPBase::XChaCha20XorData(Byte *data, UInt32 size)
 {
-  while (size > 0)
-  {
-    if (_xcBlockPos >= kXcBlockSize)
-    {
-      NXChaCha20::XChaCha20Block_Core(_xcBlock, _xcDerivedKey, _xcNonce + 16, _xcCounter);
-      _xcBlockPos = 0;
-      _xcCounter++;
-    }
-    UInt32 avail = kXcBlockSize - _xcBlockPos;
-    UInt32 toProcess = (size < avail) ? size : avail;
-    XorBytes(data, _xcBlock + _xcBlockPos, toProcess);
-    data += toProcess;
-    size -= toProcess;
-    _xcBlockPos += toProcess;
-  }
+  NXChaCha20::XChaCha20ProcessData(data, size, _xcDerivedKey, _xcNonce, _xcCounter, _xcBlock, _xcBlockPos);
 }
 
 void CAXPBaseCoder::ProcessEnc(Byte *data, UInt32 size)
@@ -240,6 +254,7 @@ CAXPEncoder::CAXPEncoder()
   _xcBlockPos = 64;
   _xcCounter = 1;
   _tagReady = false;
+  _propsWritten = false;
   memset(_computedTag, 0, kTagSize);
   Z7_memset_0_ARRAY(_aesIv);
   Z7_memset_0_ARRAY(_xcNonce);
@@ -263,6 +278,7 @@ Z7_COM7F_IMF(CAXPEncoder::ResetInitVector())
   _xcCounter = 1;
   _poly1305.Reset();
   _tagReady = false;
+  _propsWritten = false;
   memset(_computedTag, 0, kTagSize);
 
   _aadSize = 1;
@@ -309,6 +325,8 @@ Z7_COM7F_IMF(CAXPEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
 
   if (!_tagReady)
   {
+    if (!_keyDerived && _propsWritten)
+      DeriveAXPKeys();
     if (_finalized)
     {
       _tagReady = true;
@@ -324,6 +342,7 @@ Z7_COM7F_IMF(CAXPEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
       memset(_computedTag, 0, kTagSize);
     }
   }
+  _propsWritten = true;
 
   memcpy(props + propsSize, _computedTag, kTagSize);
   propsSize += kTagSize;
@@ -493,6 +512,7 @@ static CKeyInfoCache g_GlobalKeyCache(32);
 CBase::CBase():
   _cachedKeys(16),
   _keyDerived(false),
+  _aesKeys(AES_NUM_IVMRK_WORDS * sizeof(UInt32)),
   _xcBlockPos(64),
   _xcCounter(0)
 {
@@ -502,7 +522,7 @@ CBase::CBase():
   Z7_memset_0_ARRAY(_keyAscon);
   Z7_memset_0_ARRAY(_keyAes);
   Z7_memset_0_ARRAY(_aesIv);
-  Z7_memset_0_ARRAY(_aesKeys);
+  memset(_aesKeys, 0, AES_NUM_IVMRK_WORDS * sizeof(UInt32));
   Z7_memset_0_ARRAY(_keyXChaCha20);
   Z7_memset_0_ARRAY(_xcNonce);
   Z7_memset_0_ARRAY(_xcDerivedKey);
@@ -533,8 +553,8 @@ void CBase::DeriveCascadeKeys()
       _key.CascadeKey, kCascadeKeySize,
       "AES-key", 7,
       _keyAes, 32);
-  Aes_SetKey_Enc(_aesKeys + 4, _keyAes, 32);
-  memcpy(_aesKeys, _aesIv, 16);
+  Aes_SetKey_Enc(AesKeys() + 4, _keyAes, 32);
+  memcpy(AesKeys(), _aesIv, 16);
 
   NHkdfBlake2sp::Derive(
       _key.CascadeKey, kCascadeKeySize,
@@ -555,10 +575,11 @@ void CBase::DeriveCascadeKeys()
 
 void CBase::AesCtrXorData(Byte *data, UInt32 size)
 {
+  InitAesCtrFunc();
   if (size >= AES_BLOCK_SIZE)
   {
     UInt32 numBlocks = size >> 4;
-    AesCtr_Code(_aesKeys, data, numBlocks);
+    s_AesCtrFunc(AesKeys(), data, numBlocks);
     data += numBlocks << 4;
     size -= numBlocks << 4;
   }
@@ -566,7 +587,7 @@ void CBase::AesCtrXorData(Byte *data, UInt32 size)
   {
     Byte temp[16];
     memset(temp, 0, 16);
-    AesCtr_Code(_aesKeys, temp, 1);
+    s_AesCtrFunc(AesKeys(), temp, 1);
     for (UInt32 i = 0; i < size; i++)
       data[i] ^= temp[i];
     Z7_memset_0_ARRAY(temp);
@@ -575,21 +596,7 @@ void CBase::AesCtrXorData(Byte *data, UInt32 size)
 
 void CBase::XChaCha20XorData(Byte *data, UInt32 size)
 {
-  while (size > 0)
-  {
-    if (_xcBlockPos >= kXcBlockSize)
-    {
-      NXChaCha20::XChaCha20Block_Core(_xcBlock, _xcDerivedKey, _xcNonce + 16, _xcCounter);
-      _xcBlockPos = 0;
-      _xcCounter++;
-    }
-    UInt32 avail = kXcBlockSize - _xcBlockPos;
-    UInt32 toProcess = (size < avail) ? size : avail;
-    XorBytes(data, _xcBlock + _xcBlockPos, toProcess);
-    data += toProcess;
-    size -= toProcess;
-    _xcBlockPos += toProcess;
-  }
+  NXChaCha20::XChaCha20ProcessData(data, size, _xcDerivedKey, _xcNonce, _xcCounter, _xcBlock, _xcBlockPos);
 }
 
 void CBaseCoder::InitState()
@@ -960,6 +967,8 @@ Z7_COM7F_IMF(CEncoder::ResetInitVector())
   _finalized = false;
   _xcBlockPos = 64;
   _xcCounter = 0;
+  _tagReady = false;
+  _propsWritten = false;
 
   const unsigned nonceType = (NAscon::kNonceSize > 16) ? 1 : 0;
 
@@ -1001,6 +1010,7 @@ CEncoder::CEncoder()
   _xcBlockPos = 64;
   _xcCounter = 0;
   _tagReady = false;
+  _propsWritten = false;
   memset(_computedTag, 0, NAscon::kTagSize);
   Z7_memset_0_ARRAY(_aesIv);
   Z7_memset_0_ARRAY(_xcNonce);
@@ -1029,6 +1039,11 @@ Z7_COM7F_IMF(CEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
 
   if (!_tagReady)
   {
+    if (!_keyDerived && _propsWritten)
+    {
+      DeriveCascadeKeys();
+      ProcessAad(_aad, _aadSize);
+    }
     if (_finalized)
     {
       _tagReady = true;
@@ -1043,6 +1058,7 @@ Z7_COM7F_IMF(CEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
       memset(_computedTag, 0, NAscon::kTagSize);
     }
   }
+  _propsWritten = true;
 
   memcpy(props + propsSize, _computedTag, NAscon::kTagSize);
   propsSize += NAscon::kTagSize;

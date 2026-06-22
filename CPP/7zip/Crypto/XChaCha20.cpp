@@ -188,66 +188,94 @@ void XChaCha20Block_Core(Byte *output, const Byte *key, const Byte *nonce, UInt6
 
 #undef DOUBLE_ROUND
 
-void CBaseCoder::ProcessData(Byte *data, UInt32 size)
+void XChaCha20ProcessData(Byte *data, UInt32 size, const Byte *derivedKey, const Byte *nonce, UInt64 &counter, Byte *block, unsigned &blockPos)
 {
-  if (!_derivedKeyValid)
+  if (blockPos > 0 && blockPos < kBlockBytes)
   {
-    DeriveKey();
+    UInt32 remaining = kBlockBytes - blockPos;
+    UInt32 toProcess = (size < remaining) ? size : remaining;
+    Byte *dataPtr = data;
+    const Byte *blockPtr = block + blockPos;
+    UInt32 count = toProcess;
+#ifdef MY_CPU_LE_UNALIGN_64
+    while (count >= 8)
+    {
+      *(UInt64 *)dataPtr ^= *(const UInt64 *)blockPtr;
+      dataPtr += 8;
+      blockPtr += 8;
+      count -= 8;
+    }
+#endif
+#ifdef MY_CPU_LE_UNALIGN
+    while (count >= 4)
+    {
+      *(UInt32 *)dataPtr ^= *(const UInt32 *)blockPtr;
+      dataPtr += 4;
+      blockPtr += 4;
+      count -= 4;
+    }
+#endif
+    while (count--)
+      *dataPtr++ ^= *blockPtr++;
+    data += toProcess;
+    size -= toProcess;
+    blockPos += toProcess;
   }
-  
+
 #ifdef MY_CPU_X86_OR_AMD64
 #ifdef MY_CPU_SSE2
   InitSIMD();
   
-  if (size >= kBlockSize * 4)
+  if (size >= kBlockBytes * 4)
   {
     UInt32 state[16];
     state[0] = GetUi32(kSigma);
     state[1] = GetUi32(kSigma + 4);
     state[2] = GetUi32(kSigma + 8);
     state[3] = GetUi32(kSigma + 12);
-    state[4] = GetUi32(_derivedKey);
-    state[5] = GetUi32(_derivedKey + 4);
-    state[6] = GetUi32(_derivedKey + 8);
-    state[7] = GetUi32(_derivedKey + 12);
-    state[8] = GetUi32(_derivedKey + 16);
-    state[9] = GetUi32(_derivedKey + 20);
-    state[10] = GetUi32(_derivedKey + 24);
-    state[11] = GetUi32(_derivedKey + 28);
-    state[12] = (UInt32)(_counter & 0xFFFFFFFF);
-    state[13] = (UInt32)(_counter >> 32);
-    state[14] = GetUi32(_nonce + 16);
-    state[15] = GetUi32(_nonce + 20);
+    state[4] = GetUi32(derivedKey);
+    state[5] = GetUi32(derivedKey + 4);
+    state[6] = GetUi32(derivedKey + 8);
+    state[7] = GetUi32(derivedKey + 12);
+    state[8] = GetUi32(derivedKey + 16);
+    state[9] = GetUi32(derivedKey + 20);
+    state[10] = GetUi32(derivedKey + 24);
+    state[11] = GetUi32(derivedKey + 28);
+    state[12] = (UInt32)(counter & 0xFFFFFFFF);
+    state[13] = (UInt32)(counter >> 32);
+    state[14] = GetUi32(nonce + 16);
+    state[15] = GetUi32(nonce + 20);
     
 #ifdef MY_CPU_AMD64
-    if (g_AVX2Enabled && size >= kBlockSize * 8)
+    if (g_AVX2Enabled && size >= kBlockBytes * 8)
     {
-      while (size >= kBlockSize * 8)
+      while (size >= kBlockBytes * 8)
       {
         ChaCha20_OperateKeystream_AVX2(state, data, data);
         state[12] += 8;
         if (state[12] < 8)
           state[13]++;
-        data += kBlockSize * 8;
-        size -= kBlockSize * 8;
+        data += kBlockBytes * 8;
+        size -= kBlockBytes * 8;
       }
     }
 #endif
     
-    if (g_SSE2Enabled && size >= kBlockSize * 4)
+    if (g_SSE2Enabled && size >= kBlockBytes * 4)
     {
-      while (size >= kBlockSize * 4)
+      while (size >= kBlockBytes * 4)
       {
         ChaCha20_OperateKeystream_SSE2(state, data, data);
         state[12] += 4;
         if (state[12] < 4)
           state[13]++;
-        data += kBlockSize * 4;
-        size -= kBlockSize * 4;
+        data += kBlockBytes * 4;
+        size -= kBlockBytes * 4;
       }
     }
     
-    _counter = (UInt64)state[13] << 32 | state[12];
+    counter = (UInt64)state[13] << 32 | state[12];
+    blockPos = kBlockBytes;
   }
 #endif
 #endif
@@ -255,54 +283,55 @@ void CBaseCoder::ProcessData(Byte *data, UInt32 size)
 #ifdef MY_CPU_ARM_OR_ARM64
   InitSIMD();
 
-  if (g_NEONEnabled && size >= kBlockSize * 4)
+  if (g_NEONEnabled && size >= kBlockBytes * 4)
   {
     UInt32 state[16];
     state[0] = GetUi32(kSigma);
     state[1] = GetUi32(kSigma + 4);
     state[2] = GetUi32(kSigma + 8);
     state[3] = GetUi32(kSigma + 12);
-    state[4] = GetUi32(_derivedKey);
-    state[5] = GetUi32(_derivedKey + 4);
-    state[6] = GetUi32(_derivedKey + 8);
-    state[7] = GetUi32(_derivedKey + 12);
-    state[8] = GetUi32(_derivedKey + 16);
-    state[9] = GetUi32(_derivedKey + 20);
-    state[10] = GetUi32(_derivedKey + 24);
-    state[11] = GetUi32(_derivedKey + 28);
-    state[12] = (UInt32)(_counter & 0xFFFFFFFF);
-    state[13] = (UInt32)(_counter >> 32);
-    state[14] = GetUi32(_nonce + 16);
-    state[15] = GetUi32(_nonce + 20);
+    state[4] = GetUi32(derivedKey);
+    state[5] = GetUi32(derivedKey + 4);
+    state[6] = GetUi32(derivedKey + 8);
+    state[7] = GetUi32(derivedKey + 12);
+    state[8] = GetUi32(derivedKey + 16);
+    state[9] = GetUi32(derivedKey + 20);
+    state[10] = GetUi32(derivedKey + 24);
+    state[11] = GetUi32(derivedKey + 28);
+    state[12] = (UInt32)(counter & 0xFFFFFFFF);
+    state[13] = (UInt32)(counter >> 32);
+    state[14] = GetUi32(nonce + 16);
+    state[15] = GetUi32(nonce + 20);
 
-    while (size >= kBlockSize * 4)
+    while (size >= kBlockBytes * 4)
     {
       ChaCha20_OperateKeystream_NEON(state, data, data);
       state[12] += 4;
       if (state[12] < 4)
         state[13]++;
-      data += kBlockSize * 4;
-      size -= kBlockSize * 4;
+      data += kBlockBytes * 4;
+      size -= kBlockBytes * 4;
     }
 
-    _counter = (UInt64)state[13] << 32 | state[12];
+    counter = (UInt64)state[13] << 32 | state[12];
+    blockPos = kBlockBytes;
   }
 #endif
   
   while (size > 0)
   {
-    if (_blockPos == 0 || _blockPos >= kBlockSize)
+    if (blockPos == 0 || blockPos >= kBlockBytes)
     {
-      XChaCha20Block_Core(_block, _derivedKey, _nonce + 16, _counter);
-      _blockPos = 0;
-      _counter++;
+      XChaCha20Block_Core(block, derivedKey, nonce + 16, counter);
+      blockPos = 0;
+      counter++;
     }
     
-    UInt32 remaining = kBlockSize - _blockPos;
+    UInt32 remaining = kBlockBytes - blockPos;
     UInt32 toProcess = (size < remaining) ? size : remaining;
     
     Byte *dataPtr = data;
-    const Byte *blockPtr = _block + _blockPos;
+    const Byte *blockPtr = block + blockPos;
     UInt32 count = toProcess;
     
 #ifdef MY_CPU_LE_UNALIGN_64
@@ -330,8 +359,17 @@ void CBaseCoder::ProcessData(Byte *data, UInt32 size)
     
     data += toProcess;
     size -= toProcess;
-    _blockPos += toProcess;
+    blockPos += toProcess;
   }
+}
+
+void CBaseCoder::ProcessData(Byte *data, UInt32 size)
+{
+  if (!_derivedKeyValid)
+  {
+    DeriveKey();
+  }
+  XChaCha20ProcessData(data, size, _derivedKey, _nonce, _counter, _block, _blockPos);
 }
 
 #ifndef Z7_EXTRACT_ONLY

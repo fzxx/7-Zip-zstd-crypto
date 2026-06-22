@@ -6,6 +6,7 @@
 #define ZIP7_INC_CRYPTO_CASCADE_H
 
 #include "../../Common/MyCom.h"
+#include "../../Common/MyBuffer2.h"
 
 #include "../ICoder.h"
 #include "../IPassword.h"
@@ -40,7 +41,7 @@ protected:
 
   Byte _keyAes[32];
   Byte _aesIv[16];
-  UInt32 _aesKeys[AES_NUM_IVMRK_WORDS];
+  CAlignedBuffer1 _aesKeys;
 
   Byte _keyXChaCha20[32];
   Byte _xcNonce[24];
@@ -48,6 +49,8 @@ protected:
   Byte _xcBlock[64];
   unsigned _xcBlockPos;
   UInt64 _xcCounter;
+
+  UInt32 *AesKeys() { return (UInt32 *)(void *)(Byte *)_aesKeys; }
 
   void PrepareKey();
   void DeriveCascadeKeys();
@@ -60,7 +63,7 @@ protected:
     Z7_memset_0_ARRAY(_keyAscon);
     Z7_memset_0_ARRAY(_keyAes);
     Z7_memset_0_ARRAY(_aesIv);
-    Z7_memset_0_ARRAY(_aesKeys);
+    memset(_aesKeys, 0, AES_NUM_IVMRK_WORDS * sizeof(UInt32));
     Z7_memset_0_ARRAY(_keyXChaCha20);
     Z7_memset_0_ARRAY(_xcNonce);
     Z7_memset_0_ARRAY(_xcDerivedKey);
@@ -116,6 +119,7 @@ class CEncoder Z7_final:
 
   Byte _computedTag[NAscon::kTagSize];
   bool _tagReady;
+  bool _propsWritten;
   Z7_COM7F_IMP2(UInt32, Filter(Byte *data, UInt32 size))
 public:
   CEncoder();
@@ -167,7 +171,7 @@ protected:
 
   Byte _keyAes[32];
   Byte _aesIv[16];
-  UInt32 _aesKeys[AES_NUM_IVMRK_WORDS];
+  CAlignedBuffer1 _aesKeys;
 
   Byte _keyXChaCha20[32];
   Byte _xcNonce[24];
@@ -183,6 +187,8 @@ protected:
   bool _finalized;
   bool _authOk;
 
+  UInt32 *AesKeys() { return (UInt32 *)(void *)(Byte *)_aesKeys; }
+
   void PrepareKey();
   void DeriveAXPKeys();
   void ComputePolyKey();
@@ -194,7 +200,7 @@ protected:
   {
     Z7_memset_0_ARRAY(_keyAes);
     Z7_memset_0_ARRAY(_aesIv);
-    Z7_memset_0_ARRAY(_aesKeys);
+    memset(_aesKeys, 0, AES_NUM_IVMRK_WORDS * sizeof(UInt32));
     Z7_memset_0_ARRAY(_keyXChaCha20);
     Z7_memset_0_ARRAY(_xcNonce);
     Z7_memset_0_ARRAY(_xcDerivedKey);
@@ -235,6 +241,7 @@ class CAXPEncoder Z7_final:
 
   Byte _computedTag[kTagSize];
   bool _tagReady;
+  bool _propsWritten;
   Z7_COM7F_IMP2(UInt32, Filter(Byte *data, UInt32 size))
 public:
   CAXPEncoder();

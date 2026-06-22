@@ -22,9 +22,11 @@ using N7zKeyDerivation::kKeySize;
 
 const unsigned kNonceSize = 24;
 const unsigned k_NumCyclesPower_Supported_MAX = 24;
+const unsigned kBlockBytes = 64;
 
 void XChaCha20Block_Core(Byte *output, const Byte *key, const Byte *nonce, UInt64 counter);
 void XHChaCha20Block_Core(Byte *output, const Byte *key, const Byte *nonce);
+void XChaCha20ProcessData(Byte *data, UInt32 size, const Byte *derivedKey, const Byte *nonce, UInt64 &counter, Byte *block, unsigned &blockPos);
 
 class CBase
 {

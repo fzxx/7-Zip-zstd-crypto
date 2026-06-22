@@ -1,4 +1,4 @@
-﻿// XChaCha20Poly1305.h
+// XChaCha20Poly1305.h
 // Copyright (C) fzxx   Contributor: https://github.com/fzxx
 // License: GNU LGPL v2.1+
 
@@ -83,6 +83,7 @@ class CEncoder Z7_final:
 
   Byte _computedTag[kTagSize];
   bool _tagReady;
+  bool _propsWritten;
   Z7_COM7F_IMP2(UInt32, Filter(Byte *data, UInt32 size))
 public:
   CEncoder();
