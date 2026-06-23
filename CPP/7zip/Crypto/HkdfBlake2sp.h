@@ -11,7 +11,6 @@
 namespace NCrypto {
 namespace NHkdfBlake2sp {
 
-// HKDF-Expand (RFC 5869) using HMAC-BLAKE2sp
 void Derive(const Byte *prk, unsigned prkSize,
     const char *info, unsigned infoLen,
     Byte *output, unsigned outSize);

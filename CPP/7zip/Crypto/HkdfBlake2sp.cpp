@@ -11,6 +11,13 @@ namespace NHkdfBlake2sp {
 
 #define BLAKE2SP_BLOCK_SIZE 64
 
+#define Z7_HKDF_MAX_OUT_SIZE (255 * Z7_BLAKE2S_DIGEST_SIZE)
+
+static struct CBlake2sp_Prepare
+{
+  CBlake2sp_Prepare() { z7_Black2sp_Prepare(); }
+} g_Blake2sp_Prepare;
+
 static void CloneBlake2spState(CBlake2sp *dest, const CBlake2sp *src)
 {
   memcpy(dest, src, sizeof(CBlake2sp));
@@ -20,12 +27,8 @@ void Derive(const Byte *prk, unsigned prkSize,
     const char *info, unsigned infoLen,
     Byte *output, unsigned outSize)
 {
-  static bool blake2spPrepared = false;
-  if (!blake2spPrepared)
-  {
-    z7_Black2sp_Prepare();
-    blake2spPrepared = true;
-  }
+  if (outSize > Z7_HKDF_MAX_OUT_SIZE)
+    return;
 
   Byte processedKey[Z7_BLAKE2S_DIGEST_SIZE];
   const Byte *effectiveKey;
@@ -86,25 +89,13 @@ void Derive(const Byte *prk, unsigned prkSize,
 
   for (unsigned i = 1; i <= n; i++)
   {
-    Byte message[Z7_BLAKE2S_DIGEST_SIZE + 256 + 1];
-    unsigned messageSize = 0;
-
-    if (prevTSize > 0)
-    {
-      memcpy(message + messageSize, prevT, prevTSize);
-      messageSize += prevTSize;
-    }
-
-    if (infoLen > 0)
-    {
-      memcpy(message + messageSize, info, infoLen);
-      messageSize += infoLen;
-    }
-
-    message[messageSize] = (Byte)i;
-    messageSize += 1;
     CloneBlake2spState(innerTmp, innerState);
-    Blake2sp_Update(innerTmp, message, messageSize);
+    if (prevTSize > 0)
+      Blake2sp_Update(innerTmp, prevT, prevTSize);
+    if (infoLen > 0)
+      Blake2sp_Update(innerTmp, (const Byte *)info, infoLen);
+    const Byte counter = (Byte)i;
+    Blake2sp_Update(innerTmp, &counter, 1);
 
     Byte innerHash[Z7_BLAKE2S_DIGEST_SIZE];
     Blake2sp_Final(innerTmp, innerHash);
@@ -123,7 +114,6 @@ void Derive(const Byte *prk, unsigned prkSize,
     prevTSize = Z7_BLAKE2S_DIGEST_SIZE;
 
     Z7_memset_0_ARRAY(ti);
-    Z7_memset_0_ARRAY(message);
     Z7_memset_0_ARRAY(innerHash);
   }
 

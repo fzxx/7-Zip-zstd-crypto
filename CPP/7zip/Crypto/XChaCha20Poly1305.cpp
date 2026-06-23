@@ -187,7 +187,8 @@ void CPoly1305::PadAndProcessBlock(Byte *buf, unsigned bufPos)
   if (bufPos != 0)
   {
     memset(buf + bufPos, 0, 16 - bufPos);
-    Poly1305_ProcessBlock(_h, _r, _s, buf, true);
+    buf[bufPos] = 1;
+    Poly1305_ProcessBlock(_h, _r, _s, buf, false);
   }
 }
 

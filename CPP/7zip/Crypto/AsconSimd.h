@@ -11,6 +11,10 @@
 #include <emmintrin.h>
 #endif
 
+#ifdef MY_CPU_ARM_OR_ARM64
+#include <arm_neon.h>
+#endif
+
 namespace NCrypto {
 namespace NAscon {
 
@@ -22,6 +26,15 @@ extern bool g_SIMDInitialized;
 #ifdef MY_CPU_AMD64
 extern bool g_AVX512Enabled;
 #endif
+
+void InitSIMD();
+
+#endif
+
+#ifdef MY_CPU_ARM_OR_ARM64
+
+extern bool g_NEONEnabled;
+extern bool g_SIMDARMInitialized;
 
 void InitSIMD();
 
@@ -46,6 +59,30 @@ static Z7_FORCE_INLINE void AsconDecBlock_SSE2(UInt64 state[5], Byte *data)
   _mm_storeu_si128((__m128i*)data, pt);
   _mm_storel_epi64((__m128i*)&state[0], ct);
   _mm_storel_epi64((__m128i*)&state[1], _mm_srli_si128(ct, 8));
+}
+
+#endif
+
+#ifdef MY_CPU_ARM_OR_ARM64
+
+static Z7_FORCE_INLINE void AsconEncBlock_NEON(UInt64 state[5], Byte *data)
+{
+  uint64x2_t ks = vld1q_u64((const uint64_t*)state);
+  uint64x2_t pt = vld1q_u64((const uint64_t*)data);
+  uint64x2_t ct = veorq_u64(pt, ks);
+  vst1q_u64((uint64_t*)data, ct);
+  state[0] = vgetq_lane_u64(ct, 0);
+  state[1] = vgetq_lane_u64(ct, 1);
+}
+
+static Z7_FORCE_INLINE void AsconDecBlock_NEON(UInt64 state[5], Byte *data)
+{
+  uint64x2_t ks = vld1q_u64((const uint64_t*)state);
+  uint64x2_t ct = vld1q_u64((const uint64_t*)data);
+  uint64x2_t pt = veorq_u64(ct, ks);
+  vst1q_u64((uint64_t*)data, pt);
+  state[0] = vgetq_lane_u64(ct, 0);
+  state[1] = vgetq_lane_u64(ct, 1);
 }
 
 #endif

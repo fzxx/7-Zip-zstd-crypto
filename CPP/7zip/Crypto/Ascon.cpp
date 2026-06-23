@@ -68,6 +68,21 @@ void InitSIMD()
 
 #endif
 
+#ifdef MY_CPU_ARM_OR_ARM64
+
+bool g_NEONEnabled = false;
+bool g_SIMDARMInitialized = false;
+
+void InitSIMD()
+{
+  if (g_SIMDARMInitialized)
+    return;
+  g_SIMDARMInitialized = true;
+  g_NEONEnabled = CPU_IsSupported_NEON() != 0;
+}
+
+#endif
+
 #define RC0 0xf0
 #define RC1 0xe1
 #define RC2 0xd2
