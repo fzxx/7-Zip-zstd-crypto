@@ -11,8 +11,12 @@ struct CProxyFile
   unsigned NameLen;
   bool NeedDeleteName;
   
-  CProxyFile(): Name(NULL), NameLen(0), NeedDeleteName(false)  {}
-  ~CProxyFile() { if (NeedDeleteName) delete [](wchar_t *)(void *)Name; } // delete [](wchar_t *)Name;
+  void Construct()
+  {
+    Name = NULL;
+    NameLen = 0;
+    NeedDeleteName = false;
+  }
 };
 
 const unsigned k_Proxy_RootDirIndex = 0;
@@ -47,9 +51,14 @@ class CProxyArc
 
   void CalculateSizes(unsigned dirIndex, IInArchive *archive);
   unsigned AddDir(unsigned dirIndex, int arcIndex, const UString &name);
+  void FreeFiles();
 public:
   CObjectVector<CProxyDir> Dirs; // Dirs[0] - root
-  CObjArray<CProxyFile> Files;   // all items from archive in same order
+  CProxyFile *Files;  // all items from archive in same order
+  unsigned NumFiles;
+
+  CProxyArc(): Files(NULL), NumFiles(0) {}
+  ~CProxyArc() { FreeFiles(); }
 
   // returns index in Dirs[], or -1,
   int FindSubDir(unsigned dirIndex, const wchar_t *name) const;
@@ -83,17 +92,17 @@ struct CProxyFile2
   int GetDirIndex(bool forAltStreams) const { return forAltStreams ? AltDirIndex : DirIndex; }
 
   bool IsDir() const { return DirIndex != -1; }
-  CProxyFile2():
-      DirIndex(-1), AltDirIndex(-1), Parent(-1),
-      Name(NULL), NameLen(0),
-      NeedDeleteName(false),
-      Ignore(false),
-      IsAltStream(false)
-      {}
-  ~CProxyFile2()
+
+  void Construct()
   {
-    if (NeedDeleteName)
-      delete [](wchar_t *)(void *)Name;
+    DirIndex = -1;
+    AltDirIndex = -1;
+    Parent = -1;
+    Name = NULL;
+    NameLen = 0;
+    NeedDeleteName = false;
+    Ignore = false;
+    IsAltStream = false;
   }
 };
 
@@ -110,8 +119,6 @@ struct CProxyDir2
   UInt32 NumSubFiles;
 
   CProxyDir2(): ArcIndex(-1) {}
-  void AddFileSubItem(UInt32 index, const UString &name);
-  void Clear();
 };
 
 const unsigned k_Proxy2_RootDirIndex = k_Proxy_RootDirIndex;
@@ -123,10 +130,15 @@ class CProxyArc2
   void CalculateSizes(unsigned dirIndex, IInArchive *archive);
   // AddRealIndices_of_Dir DOES NOT ADD item itself represented by dirIndex
   void AddRealIndices_of_Dir(unsigned dirIndex, bool includeAltStreams, CUIntVector &realIndices) const;
+  void FreeFiles();
 public:
   CObjectVector<CProxyDir2> Dirs;  // Dirs[0] - root folder
                                    // Dirs[1] - for alt streams of root dir
-  CObjArray<CProxyFile2> Files;    // all items from archive in same order
+  CProxyFile2 *Files;   // all items from archive in same order
+  unsigned NumFiles;
+
+  CProxyArc2(): Files(NULL), NumFiles(0) {}
+  ~CProxyArc2() { FreeFiles(); }
 
   bool IsThere_SubDir(unsigned dirIndex, const UString &name) const;
 

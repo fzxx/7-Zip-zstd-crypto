@@ -76,7 +76,7 @@ differently (plugin-capable vs. standalone), which can affect available formats/
 
 The output should look like this:
 ```
-7-Zip 26.01 ZS v1.5.7 (x64) : Copyright (c) 1999- Igor Pavlov, 2016- Tino Reichardt, 2022- Sergey G. Brester : 2026-05-30
+7-Zip 26.02 ZS v1.5.7 (x64) : Copyright (c) 1999- Igor Pavlov, 2016- Tino Reichardt, 2022- Sergey G. Brester : 2026-05-30
 
 Libs:
  0  c:\Program Files\7-Zip-Zstandard\7z.dll
@@ -377,7 +377,7 @@ You find this project useful, maybe you consider a donation ;-)
 
 ## Version Information
 
-- 7-Zip ZS Version 26.01 - Release 1
+- 7-Zip ZS Version 26.02 - Release 1
   - [Brotli] Version 1.2.0
   - [Fast LZMA2] Version 1.0.1
   - [Lizard] Version 2.1
@@ -388,7 +388,7 @@ You find this project useful, maybe you consider a donation ;-)
   - [AES+XChaCha20-Poly1305] (AXP) cascade cipher, Version 1.0.0
   - [AES+XChaCha20+Ascon] (AXA) cascade cipher, Version 1.0.0, Ascon Version 1.3
 
-/TR 2026-06-13
+/TR 2026-06-27        
 
 ## Notes
 

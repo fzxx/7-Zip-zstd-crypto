@@ -233,11 +233,26 @@ void CProxyArc::CalculateSizes(unsigned dirIndex, IInArchive *archive)
   }
 }
 
+
+void CProxyArc::FreeFiles()
+{
+  const unsigned numFiles = NumFiles;
+  NumFiles = 0;
+  CProxyFile *f = Files;
+  for (unsigned i = 0; i < numFiles; i++, f++)
+    if (f->NeedDeleteName)
+      delete [](wchar_t *)(void *)f->Name;
+  delete []Files;
+  Files = NULL;
+}
+
+static const UInt32 k_NumFiles_Max = 0x7fffffff - 15;
+
 HRESULT CProxyArc::Load(const CArc &arc, IProgress *progress)
 {
   // DWORD tickCount = GetTickCount(); for (int ttt = 0; ttt < 1; ttt++) {
 
-  Files.Free();
+  FreeFiles();
   Dirs.Clear();
 
   Dirs.AddNew();
@@ -245,11 +260,15 @@ HRESULT CProxyArc::Load(const CArc &arc, IProgress *progress)
 
   UInt32 numItems;
   RINOK(archive->GetNumberOfItems(&numItems))
+  if (numItems > k_NumFiles_Max)
+    return E_OUTOFMEMORY;
   
   if (progress)
     RINOK(progress->SetTotal(numItems))
   
-  Files.Alloc(numItems);
+  Z7_ARRAY_NEW(Files, CProxyFile, numItems)
+  memset(Files, 0, (size_t)numItems * sizeof(*Files));
+  NumFiles = numItems;
 
   UString path;
   UString name;
@@ -375,6 +394,7 @@ HRESULT CProxyArc::Load(const CArc &arc, IProgress *progress)
     RINOK(Archive_IsItem_Dir(archive, i, isDir))
 
     CProxyFile &f = Files[i];
+    f.Construct(); // optional because memset() in code above
 
     f.NameLen = len - namePos;
     s += namePos;
@@ -579,6 +599,19 @@ bool CProxyArc2::IsThere_SubDir(unsigned dirIndex, const UString &name) const
   return false;
 }
 
+
+void CProxyArc2::FreeFiles()
+{
+  const unsigned numFiles = NumFiles;
+  NumFiles = 0;
+  CProxyFile2 *f = Files;
+  for (unsigned i = 0; i < numFiles; i++, f++)
+    if (f->NeedDeleteName)
+      delete [](wchar_t *)(void *)f->Name;
+  delete []Files;
+  Files = NULL;
+}
+
 HRESULT CProxyArc2::Load(const CArc &arc, IProgress *progress)
 {
   if (!arc.GetRawProps)
@@ -587,12 +620,14 @@ HRESULT CProxyArc2::Load(const CArc &arc, IProgress *progress)
   // DWORD tickCount = GetTickCount(); for (int ttt = 0; ttt < 1; ttt++) {
 
   Dirs.Clear();
-  Files.Free();
+  FreeFiles();
 
   IInArchive *archive = arc.Archive;
 
   UInt32 numItems;
   RINOK(archive->GetNumberOfItems(&numItems))
+  if (numItems > k_NumFiles_Max)
+    return E_OUTOFMEMORY;
   if (progress)
     RINOK(progress->SetTotal(numItems))
   UString fileName;
@@ -609,7 +644,9 @@ HRESULT CProxyArc2::Load(const CArc &arc, IProgress *progress)
     dir.PathPrefix = ':';
   }
 
-  Files.Alloc(numItems);
+  Z7_ARRAY_NEW(Files, CProxyFile2, numItems)
+  memset(Files, 0, (size_t)numItems * sizeof(*Files));
+  NumFiles = numItems;
 
   UString tempUString;
   AString tempAString;
@@ -619,11 +656,12 @@ HRESULT CProxyArc2::Load(const CArc &arc, IProgress *progress)
   {
     if (progress && (i & 0xFFFFF) == 0)
     {
-      UInt64 currentItemIndex = i;
+      const UInt64 currentItemIndex = i;
       RINOK(progress->SetCompleted(&currentItemIndex))
     }
     
     CProxyFile2 &file = Files[i];
+    file.Construct();
     
     const void *p;
     UInt32 size;

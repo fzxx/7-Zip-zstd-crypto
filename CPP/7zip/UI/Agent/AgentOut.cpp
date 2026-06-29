@@ -497,6 +497,7 @@ HRESULT CAgent::CreateFolder(ISequentialOutStream *outArchiveStream,
     updatePairs.Add(up2);
   }
   CUpdatePair2 up2;
+  up2.Construct();
   up2.NewData = up2.NewProps = true;
   up2.UseArcProps = false;
   up2.DirIndex = 0;
